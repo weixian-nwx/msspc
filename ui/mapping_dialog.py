@@ -7,6 +7,7 @@ dropdowns that list the chosen template slide's own text boxes.
 """
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -23,6 +24,26 @@ from PySide6.QtWidgets import (
 from app import config
 from app.db import Database
 from app.pptx_utils import list_slides, list_text_shapes
+
+
+class _NoScrollComboBox(QComboBox):
+    """Combo box that ignores wheel scrolling unless it has focus.
+
+    Inside the QScrollArea a plain QComboBox swallows wheel events and changes
+    its selection, so users scrolling the dialog accidentally re-map slides.
+    Setting StrongFocus stops the wheel from focusing the combo, and ignoring
+    the event lets it bubble up to the scroll area.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, event) -> None:
+        if self.hasFocus():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
 
 
 class _GradeRow:
@@ -101,8 +122,8 @@ class MappingDialog(QDialog):
             grid.addWidget(title_combo, 1, col)
             grid.addWidget(tmpl_combo, 2, col)
 
-            name_combo = QComboBox()
-            title_shape_combo = QComboBox()
+            name_combo = _NoScrollComboBox()
+            title_shape_combo = _NoScrollComboBox()
             row.name_combos[role] = name_combo
             row.title_combos[role] = title_shape_combo
             grid.addWidget(name_combo, 3, col)
@@ -118,7 +139,7 @@ class MappingDialog(QDialog):
         return box
 
     def _slide_combo(self) -> QComboBox:
-        combo = QComboBox()
+        combo = _NoScrollComboBox()
         for s in self.slides:
             combo.addItem(f'{s["idx"] + 1}. {s["title"]}', s["idx"])
         return combo
