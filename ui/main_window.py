@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -25,6 +26,7 @@ from app.db import Database
 from app.excel_io import ExcelError, export_attendance, import_participants
 from app.pptx_builder import BuildError, build_deck
 from ui.mapping_dialog import MappingDialog
+from ui.participant_list import ParticipantList
 from ui.scan_view import ScanView
 
 
@@ -33,7 +35,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.db = db
         self.setWindowTitle("Attendance Taking")
-        self.resize(1000, 680)
+        self.resize(1040, 760)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -44,12 +46,24 @@ class MainWindow(QMainWindow):
         # Left control panel.
         root.addWidget(self._build_left_panel(), 0)
 
-        # Right: live scan view.
+        # Right: live scan view on top, participant roster below — a vertical
+        # splitter lets staff trade camera size against list size during an event.
         self.scan_view = ScanView(self._handle_decode)
         scan_box = QGroupBox("Scanning")
         scan_layout = QVBoxLayout(scan_box)
         scan_layout.addWidget(self.scan_view)
-        root.addWidget(scan_box, 1)
+
+        self.participant_list = ParticipantList(self.db)
+        list_box = QGroupBox("Participants")
+        list_layout = QVBoxLayout(list_box)
+        list_layout.addWidget(self.participant_list)
+
+        right = QSplitter(Qt.Vertical)
+        right.addWidget(scan_box)
+        right.addWidget(list_box)
+        right.setStretchFactor(0, 3)
+        right.setStretchFactor(1, 2)
+        root.addWidget(right, 1)
 
         self._apply_style()
         self._refresh_state()
@@ -176,6 +190,8 @@ class MainWindow(QMainWindow):
         if has_template:
             lines.append("Mappings: " + ("complete ✓" if mappings_ok else "incomplete"))
         self.status_label.setText("<br>".join(lines))
+
+        self.participant_list.refresh()
 
     # ------------------------------------------------------------ uploads
     def _on_upload_excel(self) -> None:
