@@ -6,6 +6,7 @@ other way.
 """
 from __future__ import annotations
 
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -32,9 +33,16 @@ _FILTER_ABSENT = "Absent"
 
 
 class ParticipantList(QWidget):
+    # Emitted when a row is double-clicked, carrying that participant's qr_id.
+    # The owner decides what to do (confirm + toggle attendance); this widget
+    # stays a read-only view over the DB.
+    toggle_requested = Signal(str)
+
     def __init__(self, db: Database, parent=None) -> None:
         super().__init__(parent)
         self.db = db
+        # Filtered participants currently shown, aligned with table rows.
+        self._rows: list = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -66,9 +74,15 @@ class ParticipantList(QWidget):
         header.setSectionResizeMode(0, QHeaderView.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setStretchLastSection(True)
+        # Double-clicking anywhere on a row toggles that participant's status.
+        self.table.cellDoubleClicked.connect(self._on_double_click)
         layout.addWidget(self.table)
 
     # ------------------------------------------------------------------ refresh
+    def _on_double_click(self, row: int, _col: int) -> None:
+        if 0 <= row < len(self._rows):
+            self.toggle_requested.emit(self._rows[row].qr_id)
+
     def _apply_filter(self) -> None:
         self.refresh()
 
@@ -87,6 +101,7 @@ class ParticipantList(QWidget):
                 continue
             rows.append(p)
 
+        self._rows = rows
         self.table.setRowCount(len(rows))
         for r, p in enumerate(rows):
             name_item = QTableWidgetItem(p.name)

@@ -127,6 +127,14 @@ class Database:
         )
         self.conn.commit()
 
+    def mark_absent(self, qr_id: str) -> None:
+        """Single-row inverse of mark_present (for manual corrections)."""
+        self.conn.execute(
+            "UPDATE participants SET present=0, checkin_time=NULL WHERE qr_id=?",
+            (qr_id,),
+        )
+        self.conn.commit()
+
     def counts(self) -> tuple[int, int]:
         """Return (present_count, total_count)."""
         total = self.conn.execute("SELECT COUNT(*) AS c FROM participants").fetchone()["c"]

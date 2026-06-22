@@ -56,6 +56,7 @@ class MainWindow(QMainWindow):
         scan_layout.addWidget(self.scan_view)
 
         self.participant_list = ParticipantList(self.db)
+        self.participant_list.toggle_requested.connect(self._on_toggle_participant)
         list_box = QGroupBox("Participants")
         list_layout = QVBoxLayout(list_box)
         list_layout.addWidget(self.participant_list)
@@ -269,6 +270,32 @@ class MainWindow(QMainWindow):
         # Refresh counts in the side panel.
         self._refresh_state()
         return "ok", f"Checked in: {participant.name} ({participant.title})"
+
+    def _on_toggle_participant(self, qr_id: str) -> None:
+        """Manual present/absent toggle from the participant list (double-click).
+
+        Mirrors the scan path's downstream effects (mark → export → refresh),
+        guarded by a confirmation. Feedback is the row repaint, not the banner.
+        """
+        participant = self.db.get_participant(qr_id)
+        if participant is None:
+            return
+        make_present = not participant.present
+        verb = "present" if make_present else "absent"
+        if not self._confirm(
+            "Change attendance",
+            f"Mark {participant.name} ({participant.title}) as {verb}?",
+        ):
+            return
+        if make_present:
+            self.db.mark_present(qr_id)
+        else:
+            self.db.mark_absent(qr_id)
+        try:
+            export_attendance(self.db)  # keep the attendance xlsx in sync
+        except ExcelError:
+            pass
+        self._refresh_state()
 
     def _on_open_attendance(self) -> None:
         if os.path.exists(config.ATTENDANCE_XLSX):

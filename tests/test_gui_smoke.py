@@ -66,6 +66,22 @@ def main() -> int:
     print("  inline shape dropdown listed", name_count, "shapes")
     md.close()
 
+    # Manual attendance toggle: emitting toggle_requested routes to the handler,
+    # which (with confirmation forced) marks the participant present, mirroring a
+    # scan. _confirm shows a blocking dialog, so stub it to auto-accept.
+    w._confirm = lambda *a, **k: True
+    before_present, _ = db.counts()
+    qr = db.all_participants()[0].qr_id
+    w.participant_list.toggle_requested.emit(qr)
+    app.processEvents()
+    assert db.get_participant(qr).present, "double-click toggle should mark present"
+    assert db.counts()[0] == before_present + 1, "present count should rise by one"
+    w.participant_list.toggle_requested.emit(qr)  # toggle back to absent
+    app.processEvents()
+    assert not db.get_participant(qr).present, "second toggle should mark absent"
+    assert db.counts()[0] == before_present, "present count should return to baseline"
+    print("  manual toggle marks present then absent OK")
+
     w.close()
     db.close()
     os.remove(os.path.join(config.DATA_DIR, "smoke.db"))

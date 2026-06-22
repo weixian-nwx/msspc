@@ -65,6 +65,15 @@ def main() -> int:
     assert (present, total) == (4, 7), (present, total)
     print(f"[ok] attendance: {present}/{total} present")
 
+    # 3b. Manual un-mark round-trip: mark_absent reverts present + checkin_time.
+    db.mark_absent("E002")
+    p = db.get_participant("E002")
+    assert p is not None and not p.present and p.checkin_time is None, p
+    assert db.counts() == (3, 7), db.counts()
+    db.mark_present("E002")  # restore for the rest of the test
+    assert db.counts() == (4, 7), db.counts()
+    print("[ok] mark_absent round-trip verified")
+
     # 4. Export attendance excel and verify columns + status.
     att_path = os.path.join(workdir, "attendance.xlsx")
     export_attendance(db, att_path)
