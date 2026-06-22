@@ -38,12 +38,10 @@ def main() -> int:
     assert not w.btn_populate.isEnabled(), "populate must be disabled with no template"
     assert not w.btn_mappings.isEnabled(), "mappings must be disabled with no template"
 
-    # Construct the mapping dialog + shape picker against sample data.
+    # Construct the mapping dialog against sample data.
     import tests.make_samples as samples
     from app.excel_io import import_participants
-    from app.pptx_utils import list_text_shapes
     from ui.mapping_dialog import MappingDialog
-    from ui.shape_picker import ShapePickerDialog
 
     samples.make_excel()
     samples.make_pptx()
@@ -55,14 +53,18 @@ def main() -> int:
     app.processEvents()
     assert set(md.rows.keys()) == {"e", "m", "f"}, md.rows.keys()
     print("  MappingDialog built with grades:", sorted(md.rows.keys()))
-    md.close()
 
-    sp = ShapePickerDialog(samples.PPTX, 1)  # slide 1 is a template slide
-    sp.show()
+    # The inline shape dropdowns must list the chosen template slide's text
+    # boxes, and repopulate when the template slide changes. Slide 1 is a
+    # template slide in the sample deck.
+    row = md.rows["m"]
+    tmpl_combo = row.combos[(config.ROLE_PRESENT, config.KIND_TEMPLATE)]
+    tmpl_combo.setCurrentIndex(tmpl_combo.findData(1))
     app.processEvents()
-    assert sp.name_combo.count() >= 2, "shape picker should list the text boxes"
-    print("  ShapePickerDialog listed", sp.name_combo.count(), "shapes")
-    sp.close()
+    name_count = row.name_combos[config.ROLE_PRESENT].count()
+    assert name_count >= 2, "inline name dropdown should list the template slide's text boxes"
+    print("  inline shape dropdown listed", name_count, "shapes")
+    md.close()
 
     w.close()
     db.close()

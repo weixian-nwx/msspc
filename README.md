@@ -133,10 +133,11 @@ The left panel is organised into three numbered steps plus a clear-data section.
      - **Present → Template slide**: the per-attendee layout to clone for present people.
      - **Absent → Title slide**: the “_X grade absentees_” heading.
      - **Absent → Template slide**: the per-attendee layout to clone for absent people.
-   - For each **template** slide, click **Set shapes…** and choose which text box
-     holds the **name** and which holds the **title**. (The picker lists each text
-     box by its shape name and a snippet of its current text.) The button shows
-     “Shapes set ✓” once both are chosen.
+   - Directly beneath each **template** slide drop-down are **Name shape** and
+     **Title shape** drop-downs that list that slide's text boxes (each shown by
+     its shape name and a snippet of its current text); pick which holds the
+     **name** and which holds the **title**. The lists refresh automatically when
+     you change the template slide, so the shapes always match the chosen slide.
    - Click **Save**. Mappings are stored in the database and survive restarts.
    - ✅ When *every* grade has all four slides mapped **and** both template shapes
      designated, “Populate slide deck” is enabled.
@@ -200,10 +201,10 @@ layers:
 
 ```
             ┌──────────────────────────── ui/ ────────────────────────────┐
-            │ MainWindow  ──  ScanView      MappingDialog   ShapePicker     │
-            └───────┬───────────┬────────────────┬──────────────┬──────────┘
-                    │           │ frames/decodes │              │
-            ┌───────▼───────────▼────────────────▼──────────────▼──────────┐
+            │ MainWindow  ──  ScanView      MappingDialog                  │
+            └───────┬───────────┬────────────────┬─────────────────────────┘
+                    │           │ frames/decodes │
+            ┌───────▼───────────▼────────────────▼─────────────────────────┐
             │ app/  Database   ScannerThread   excel_io   pptx_builder      │
             │       (SQLite)   (QThread+cv2)   (openpyxl) (python-pptx)     │
             │                                   pptx_utils (XML helpers)    │
@@ -244,8 +245,7 @@ msspc/
 ├─ ui/
 │  ├─ main_window.py       # Control panel, gating, wiring, clear buttons
 │  ├─ scan_view.py         # Live camera widget + colored result banner
-│  ├─ mapping_dialog.py    # Per-grade 4-slide mapping
-│  └─ shape_picker.py      # Pick name/title shapes on a template slide
+│  └─ mapping_dialog.py    # Per-grade 4-slide mapping + inline name/title shape pickers
 ├─ tests/
 │  ├─ make_samples.py      # Generate a sample roster + template deck
 │  ├─ test_pipeline.py     # Headless db+excel+pptx end-to-end assertions
@@ -332,7 +332,7 @@ those at the XML/relationship level:
   and set its text while preserving the template's font/size/colour (only the
   first run's text is replaced; extra runs/paragraphs are removed).
 - **Inspection helpers** (`list_slides`, `list_text_shapes`, `slide_title_text`)
-  feed the mapping UI and shape picker.
+  feed the mapping dialog's slide and inline shape drop-downs.
 
 `build_deck(db, out_path)` then:
 
@@ -415,7 +415,7 @@ Some common changes and where to make them:
 | Change required column names | `app/config.py` (`COL_*`, `REQUIRED_COLUMNS`); matching is in `excel_io._find_required_columns`. |
 | Add columns to the attendance export | `app/excel_io.py :: export_attendance`. |
 | Change scan debounce or camera index | `config.SCAN_DEBOUNCE_SECONDS`; `ScannerThread(camera_index=...)`. |
-| Add fields to a slide (e.g. department) | Extend `slide_mappings` with another `*_shape_id`, capture it in `ui/shape_picker.py` + `ui/mapping_dialog.py`, and fill it in `pptx_builder.build_deck`. |
+| Add fields to a slide (e.g. department) | Extend `slide_mappings` with another `*_shape_id`, capture it via another inline shape drop-down in `ui/mapping_dialog.py`, and fill it in `pptx_builder.build_deck`. |
 | Different attendee ordering | `build_deck` already orders by `row_index`; change the sort there. |
 | Keep template slides in the output | Remove the `delete_slide` loop in `build_deck`. |
 | Switch QR decoder to `pyzbar` | Replace the `cv2.QRCodeDetector` calls in `app/scanner.py` (add `pyzbar` + the zbar runtime). |
