@@ -5,7 +5,7 @@ import os
 import shutil
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
         self.db = db
         self.setWindowTitle("Attendance Taking")
         self.resize(1040, 760)
+
+        self._build_menu()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -124,25 +126,28 @@ class MainWindow(QMainWindow):
 
         layout.addStretch(1)
 
-        layout.addWidget(self._hline())
-        layout.addWidget(self._section_label("Clear data"))
-        self.btn_clear_attendance = QPushButton("Clear attendance")
-        self.btn_clear_attendance.clicked.connect(self._on_clear_attendance)
-        layout.addWidget(self.btn_clear_attendance)
-
-        self.btn_clear_mappings = QPushButton("Clear slide mappings")
-        self.btn_clear_mappings.clicked.connect(self._on_clear_mappings)
-        layout.addWidget(self.btn_clear_mappings)
-
-        self.btn_clear_template = QPushButton("Clear template deck")
-        self.btn_clear_template.clicked.connect(self._on_clear_template)
-        layout.addWidget(self.btn_clear_template)
-
-        self.btn_clear_excel = QPushButton("Clear expected participants")
-        self.btn_clear_excel.clicked.connect(self._on_clear_excel)
-        layout.addWidget(self.btn_clear_excel)
-
         return panel
+
+    def _build_menu(self) -> None:
+        """Settings menu holding the destructive 'Clear data' actions."""
+        settings = self.menuBar().addMenu("Settings")
+
+        clear_menu = settings.addMenu("Clear data")
+        self.act_clear_attendance = QAction("Clear attendance", self)
+        self.act_clear_attendance.triggered.connect(self._on_clear_attendance)
+        clear_menu.addAction(self.act_clear_attendance)
+
+        self.act_clear_mappings = QAction("Clear slide mappings", self)
+        self.act_clear_mappings.triggered.connect(self._on_clear_mappings)
+        clear_menu.addAction(self.act_clear_mappings)
+
+        self.act_clear_template = QAction("Clear template deck", self)
+        self.act_clear_template.triggered.connect(self._on_clear_template)
+        clear_menu.addAction(self.act_clear_template)
+
+        self.act_clear_excel = QAction("Clear expected participants", self)
+        self.act_clear_excel.triggered.connect(self._on_clear_excel)
+        clear_menu.addAction(self.act_clear_excel)
 
     def _section_label(self, text: str) -> QLabel:
         lbl = QLabel(text)
@@ -173,10 +178,10 @@ class MainWindow(QMainWindow):
         self.btn_populate.setEnabled(has_template and mappings_ok)
         self.btn_open_attendance.setEnabled(os.path.exists(config.ATTENDANCE_XLSX))
 
-        self.btn_clear_attendance.setEnabled(has_excel)
-        self.btn_clear_mappings.setEnabled(len(self.db.get_mappings()) > 0)
-        self.btn_clear_template.setEnabled(has_template)
-        self.btn_clear_excel.setEnabled(has_excel)
+        self.act_clear_attendance.setEnabled(has_excel)
+        self.act_clear_mappings.setEnabled(len(self.db.get_mappings()) > 0)
+        self.act_clear_template.setEnabled(has_template)
+        self.act_clear_excel.setEnabled(has_excel)
 
         self.btn_scan.setText("Stop scanning" if scanning else "Start scanning")
 
