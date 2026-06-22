@@ -43,7 +43,7 @@ is for developers maintaining or extending the app.
 | Scan feedback | Green = checked in. Amber = already checked in (no double counting). Red = unknown QR (not on the roster — rejected). |
 | Deck population | Clones a per-grade *template* slide for each attendee, fills in their name and title, and inserts it after that grade's *section title* slide. Present and absent attendees are handled separately, per grade. |
 | Auto-save | The SQLite database is committed on every scan, upload, mapping change, and clear. The attendance Excel is regenerated on every successful scan. |
-| Safe clearing | Each piece of data has its own clear button, each behind a confirmation dialog. |
+| Safe clearing | Each piece of data has its own action in the **Settings ▸ Clear data** menu, each behind a confirmation dialog. |
 
 The grade values are **dynamic** — whatever distinct values appear in the roster's
 `grade` column become the grades the app maps and groups by (e.g. `e`, `m`, `f`).
@@ -102,14 +102,17 @@ terminal, and re-run `setup.ps1`.
 
 (or `run.bat`, or directly `.\.venv\Scripts\python.exe main.py`).
 
-The window opens with a control panel on the left and the live scanning view on
-the right. Buttons are greyed out until their prerequisites are met (see below).
+The window opens with a control panel on the left. The right side is a vertical
+splitter: the live scanning view on top and the **Participants** roster below
+(drag the divider to trade camera size against list size). Buttons are greyed out
+until their prerequisites are met (see below).
 
 ---
 
 ## 5. Operator workflow (step by step)
 
-The left panel is organised into three numbered steps plus a clear-data section.
+The left panel is organised into three numbered steps. (Destructive clear actions
+live in the **Settings ▸ Clear data** menu — see below.)
 
 ### Step 1 — Data sources
 
@@ -155,6 +158,16 @@ The left panel is organised into three numbered steps plus a clear-data section.
 
 5. **Open attendance excel** — opens the current `data/attendance.xlsx`.
 
+The **Participants** list (right side, below the scan view) shows every roster
+entry with live **Present**/**Absent** status — present rows are highlighted
+green — and updates the moment a scan lands. A name search box and a
+status filter (All / Present / Absent) help you find people in a long list.
+
+**Manual correction:** **double-click a participant** to toggle their attendance.
+After a confirmation dialog this marks them present or absent and re-saves the
+attendance Excel, exactly as a scan would — useful for someone without a working
+QR, or to undo a mistaken check-in.
+
 ### Step 3 — Slide deck
 
 6. **Populate slide deck** — builds the deck (see §10.3) and saves a new
@@ -162,7 +175,10 @@ The left panel is organised into three numbered steps plus a clear-data section.
    immediately. You can press this at any time, as often as you like; each press
    reflects the current attendance and produces a fresh file.
 
-### Clear data (each with confirmation)
+### Settings ▸ Clear data (each with confirmation)
+
+These four destructive actions live in the **Settings** menu (under **Clear
+data**), each behind its own confirmation dialog:
 
 - **Clear attendance** — resets all check-ins to absent; keeps roster + mappings.
 - **Clear slide mappings** — deletes all slide mappings only.
@@ -190,7 +206,7 @@ already-recorded data. On next launch the app reloads the roster, template,
 mappings, and check-ins from `app.db`.
 
 > Deleting the `data/` folder is a hard reset — it wipes everything. Prefer the
-> in-app clear buttons for partial resets.
+> in-app **Settings ▸ Clear data** actions for partial resets.
 
 ---
 
@@ -201,7 +217,7 @@ layers:
 
 ```
             ┌──────────────────────────── ui/ ────────────────────────────┐
-            │ MainWindow  ──  ScanView      MappingDialog                  │
+            │ MainWindow  ──  ScanView   ParticipantList   MappingDialog   │
             └───────┬───────────┬────────────────┬─────────────────────────┘
                     │           │ frames/decodes │
             ┌───────▼───────────▼────────────────▼─────────────────────────┐
@@ -243,8 +259,9 @@ msspc/
 │  ├─ pptx_utils.py        # Slide clone/move/delete + shape helpers + inspection
 │  └─ pptx_builder.py      # build_deck(): assemble the populated deck
 ├─ ui/
-│  ├─ main_window.py       # Control panel, gating, wiring, clear buttons
+│  ├─ main_window.py       # Control panel, gating, wiring, Settings/clear menu
 │  ├─ scan_view.py         # Live camera widget + colored result banner
+│  ├─ participant_list.py  # In-app roster: live status, search/filter, double-click toggle
 │  └─ mapping_dialog.py    # Per-grade 4-slide mapping + inline name/title shape pickers
 ├─ tests/
 │  ├─ make_samples.py      # Generate a sample roster + template deck
@@ -366,7 +383,20 @@ Recomputed after every relevant action:
 - Scan button: enabled when a roster is loaded.
 - Populate button: enabled when a template is loaded **and** `mappings_complete()`.
 - Open-attendance: enabled when `attendance.xlsx` exists.
-- Each clear button: enabled only when there is something to clear.
+- Each **Settings ▸ Clear data** action: enabled only when there is something to clear.
+
+### 10.6 Participant list & manual toggle (`ui/participant_list.py`)
+- `ParticipantList` is a **read-only** view over the `participants` table. It never
+  writes to the DB; the owner (`MainWindow`) calls `refresh()` after any state
+  change (upload, scan, manual toggle, clear) to rebuild the table — honouring the
+  name search box and the All/Present/Absent status filter, in `row_index` order.
+  Present rows are highlighted with the same green as a checked-in banner.
+- Double-clicking a row emits `toggle_requested(qr_id)`. `MainWindow._on_toggle_participant`
+  handles it: it confirms, then calls `Database.mark_present` or the new
+  `Database.mark_absent(qr_id)` (the single-row inverse of `mark_present`, for
+  manual corrections), re-exports `attendance.xlsx`, and refreshes — the same
+  downstream effects as a scan, but with the row repaint as feedback instead of the
+  banner.
 
 ---
 
