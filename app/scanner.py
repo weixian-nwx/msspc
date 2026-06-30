@@ -43,31 +43,33 @@ class ScannerThread(QThread):
 
         self._running = True
         read_failures = 0
-        while self._running:
-            ok, frame = cap.read()
-            if not ok:
-                read_failures += 1
-                if read_failures > 30:
-                    self.error.emit("Lost connection to the webcam.")
-                    break
-                self.msleep(30)
-                continue
-            read_failures = 0
+        try:
+            while self._running:
+                ok, frame = cap.read()
+                if not ok:
+                    read_failures += 1
+                    if read_failures > 30:
+                        self.error.emit("Lost connection to the webcam.")
+                        break
+                    self.msleep(30)
+                    continue
+                read_failures = 0
 
-            self.frame_ready.emit(frame)
+                self.frame_ready.emit(frame)
 
-            try:
-                value, points, _ = self._detector.detectAndDecode(frame)
-            except cv2.error:
-                value = ""
+                try:
+                    value, points, _ = self._detector.detectAndDecode(frame)
+                except cv2.error:
+                    value = ""
 
-            if value:
-                self._handle_decode(value)
+                if value:
+                    self._handle_decode(value)
 
-            # Throttle the loop a little to keep CPU reasonable (~30 fps cap).
-            self.msleep(15)
-
-        cap.release()
+                # Throttle the loop a little to keep CPU reasonable (~30 fps cap).
+                self.msleep(15)
+        finally:
+            # Always release the device so the camera powers off, even on error.
+            cap.release()
 
     def _handle_decode(self, value: str) -> None:
         now = time.monotonic()
@@ -78,5 +80,7 @@ class ScannerThread(QThread):
         self.qr_decoded.emit(value)
 
     def stop(self) -> None:
+        # Block until run() returns and the finally-block has released the camera.
+        # The loop's per-iteration msleep bounds this to well under a second.
         self._running = False
-        self.wait(2000)
+        self.wait()

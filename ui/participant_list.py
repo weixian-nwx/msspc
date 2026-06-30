@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 
 from app.db import Database
 
-# Same "ok" palette used by ScanView for a checked-in banner.
+# Light green marking a checked-in ("present") row.
 PRESENT_BG = QColor("#d4edda")
 PRESENT_FG = QColor("#1e7e34")
 

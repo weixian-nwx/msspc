@@ -1,4 +1,4 @@
-"""Live webcam preview with a colored result banner for each scan."""
+"""Live webcam preview with a colored result overlay for each scan."""
 from __future__ import annotations
 
 import cv2
@@ -33,18 +33,18 @@ class ScanView(QWidget):
         )
         layout.addWidget(self.video, 1)
 
-        self.banner = QLabel("")
-        self.banner.setAlignment(Qt.AlignCenter)
-        self.banner.setWordWrap(True)
-        self.banner.setMinimumHeight(56)
-        self.banner.setStyleSheet(self._banner_style("idle"))
-        self.banner.setText("Scanner stopped.")
-        layout.addWidget(self.banner)
+        # Translucent colored wash drawn over the video on each scan. It is a
+        # child of this widget (not in the layout) so it can float on top; its
+        # geometry is kept in sync with the widget in resizeEvent.
+        self.overlay = QLabel("", self)
+        self.overlay.setAlignment(Qt.AlignCenter)
+        self.overlay.setWordWrap(True)
+        self.overlay.hide()
 
-        # Clears a transient banner back to a neutral 'ready' state.
+        # Clears a transient scan overlay back to the clean live view.
         self._reset_timer = QTimer(self)
         self._reset_timer.setSingleShot(True)
-        self._reset_timer.timeout.connect(self._set_ready)
+        self._reset_timer.timeout.connect(self._hide_overlay)
 
     # ----------------------------------------------------------- lifecycle
     def start(self) -> bool:
@@ -55,19 +55,24 @@ class ScanView(QWidget):
         self._scanner.qr_decoded.connect(self._on_decoded)
         self._scanner.error.connect(self._on_error)
         self._scanner.start()
-        self._set_ready()
+        self._hide_overlay()
         return True
 
     def stop(self) -> None:
         if self._scanner is not None:
             self._scanner.stop()
             self._scanner = None
+        self._hide_overlay()
         self.video.setText("Camera off")
         self.video.setPixmap(QPixmap())
-        self._show_banner("idle", "Scanner stopped.")
 
     def is_running(self) -> bool:
         return self._scanner is not None
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        # Keep the overlay covering the full video area as the window resizes.
+        self.overlay.setGeometry(self.rect())
+        super().resizeEvent(event)
 
     # -------------------------------------------------------------- slots
     def _on_frame(self, frame) -> None:
@@ -81,32 +86,38 @@ class ScanView(QWidget):
 
     def _on_decoded(self, value: str) -> None:
         level, message = self._decode_handler(value)
-        self._show_banner(level, message)
+        self._show_overlay(level, message)
+        # Persist the result briefly, then clear back to the clean live view.
         self._reset_timer.start(2500)
 
     def _on_error(self, message: str) -> None:
-        self._show_banner("error", message)
+        # Errors stay visible until the next scan or stop (no auto-clear).
+        self._reset_timer.stop()
+        self._show_overlay("error", message)
 
-    # -------------------------------------------------------------- banner
-    def _set_ready(self) -> None:
-        if self.is_running():
-            self._show_banner("ready", "Ready — present a QR code to the camera.")
+    # ------------------------------------------------------------- overlay
+    def _show_overlay(self, level: str, text: str) -> None:
+        self.overlay.setStyleSheet(self._overlay_style(level))
+        self.overlay.setText(text)
+        self.overlay.setGeometry(self.rect())
+        self.overlay.show()
+        self.overlay.raise_()
 
-    def _show_banner(self, level: str, text: str) -> None:
-        self.banner.setStyleSheet(self._banner_style(level))
-        self.banner.setText(text)
+    def _hide_overlay(self) -> None:
+        self._reset_timer.stop()
+        self.overlay.hide()
 
     @staticmethod
-    def _banner_style(level: str) -> str:
+    def _overlay_style(level: str) -> str:
+        # (r, g, b) of the translucent wash drawn over the video.
         colors = {
-            "ok": ("#1e7e34", "#d4edda"),
-            "warn": ("#b8860b", "#fff3cd"),
-            "error": ("#a71d2a", "#f8d7da"),
-            "ready": ("#0b5ed7", "#e7f1ff"),
-            "idle": ("#555", "#eee"),
+            "ok": (30, 126, 52),
+            "warn": (184, 134, 11),
+            "error": (167, 29, 42),
+            "ready": (11, 94, 215),
         }
-        fg, bg = colors.get(level, colors["idle"])
+        r, g, b = colors.get(level, (40, 40, 40))
         return (
-            f"background:{bg}; color:{fg}; border:1px solid {fg}; "
-            "border-radius:8px; font-size:16px; font-weight:600; padding:8px;"
+            f"background:rgba({r},{g},{b},190); color:#ffffff; "
+            "border-radius:8px; font-size:32px; font-weight:700; padding:24px;"
         )

@@ -41,7 +41,7 @@ is for developers maintaining or extending the app.
 | Roster import | Reads an `.xlsx`/`.xlsm` of expected participants. Required columns (case/whitespace/underscore tolerant): `unique qr id`, `name`, `title`, `grade`, `seat_no`, `bu`. Any extra columns are preserved in the output. |
 | QR scanning | Uses the default webcam and OpenCV's built-in QR detector. The QR must encode the participant's `unique qr id` **verbatim**. |
 | QR generation | **Generate QR codes** writes one PNG per participant into `data/qrcodes/` (encoding the `unique qr id`, captioned with the name, named by `seat_no`) and opens the folder. |
-| Scan feedback | Green = checked in. Amber = already checked in (no double counting). Red = unknown QR (not on the roster — rejected). |
+| Scan feedback | A full-screen colored overlay flashes over the live video on each scan: Green = checked in. Amber = already checked in (no double counting). Red = unknown QR (not on the roster — rejected). |
 | Deck population | Clones a per-grade *template* slide for each attendee, fills in their name, title and BU, and inserts it after that grade's *section title* slide. Present and absent attendees are handled separately, per grade. |
 | Auto-save | The SQLite database is committed on every scan, upload, mapping change, and clear. The attendance Excel is regenerated on every successful scan. |
 | Safe clearing | Each piece of data has its own action in the **Settings ▸ Clear data** menu, each behind a confirmation dialog. |
@@ -155,13 +155,14 @@ live in the **Settings ▸ Clear data** menu — see below.)
 
 ### Step 2 — Attendance
 
-5. **Start scanning** — opens the webcam. Present a participant's QR code:
-   - **Green banner**: checked in — shows name and title.
-   - **Amber banner**: already checked in — no change, no double count.
-   - **Red banner**: the QR value is not on the roster — rejected.
+5. **Start scanning** — opens the webcam. Present a participant's QR code. A colored
+   overlay flashes over the live video for a couple of seconds:
+   - **Green overlay**: checked in — shows name and title.
+   - **Amber overlay**: already checked in — no change, no double count.
+   - **Red overlay**: the QR value is not on the roster — rejected.
    - The same QR is ignored for a few seconds after a read (debounce) so holding it
      up doesn't fire repeatedly.
-   - Click **Stop scanning** to release the camera.
+   - Click **Stop scanning** to release the camera — it always powers the webcam off.
    - The attendance Excel is re-saved after every successful check-in.
 
 6. **Open attendance excel** — opens the current `data/attendance.xlsx`.
@@ -272,7 +273,7 @@ msspc/
 │  └─ pptx_builder.py      # build_deck(): assemble the populated deck
 ├─ ui/
 │  ├─ main_window.py       # Control panel, gating, wiring, Settings/clear menu
-│  ├─ scan_view.py         # Live camera widget + colored result banner
+│  ├─ scan_view.py         # Live camera widget + colored result overlay
 │  ├─ participant_list.py  # In-app roster: resizable columns, live status, search/filter, double-click toggle
 │  └─ mapping_dialog.py    # Per-grade 4-slide mapping + inline name/title/BU shape pickers
 ├─ tests/
@@ -392,11 +393,13 @@ slide → absent attendees, all in input-roster order.
   a default-backend fallback), reads frames in a loop, emits each frame for live
   preview (`frame_ready`) and emits decoded QR strings (`qr_decoded`) through Qt
   signals. A debounce (`config.SCAN_DEBOUNCE_SECONDS`, default 3 s) suppresses
-  repeated reads of the same code.
-- `ScanView` renders frames into a `QLabel` and shows a colour-coded banner. It
-  calls back into `MainWindow._handle_decode(value)`, which validates against the
-  roster, updates the DB, regenerates the attendance Excel, and returns a
-  `(level, message)` tuple (`ok`/`warn`/`error`) that drives the banner colour.
+  repeated reads of the same code. `stop()` waits for the capture loop to finish
+  and a `finally` block always releases the camera, so the webcam reliably powers off.
+- `ScanView` renders frames into a `QLabel` and flashes a colour-coded translucent
+  overlay over the video on each scan (cleared after ~2.5 s). It calls back into
+  `MainWindow._handle_decode(value)`, which validates against the roster, updates the
+  DB, regenerates the attendance Excel, and returns a `(level, message)` tuple
+  (`ok`/`warn`/`error`) that drives the overlay colour.
 
 ### 10.5 Button gating (`ui/main_window.py :: _refresh_state`)
 Recomputed after every relevant action:
@@ -411,13 +414,13 @@ Recomputed after every relevant action:
   writes to the DB; the owner (`MainWindow`) calls `refresh()` after any state
   change (upload, scan, manual toggle, clear) to rebuild the table — honouring the
   name search box and the All/Present/Absent status filter, in `row_index` order.
-  Present rows are highlighted with the same green as a checked-in banner.
+  Present rows are highlighted with the same green as a checked-in overlay.
 - Double-clicking a row emits `toggle_requested(qr_id)`. `MainWindow._on_toggle_participant`
   handles it: it confirms, then calls `Database.mark_present` or the new
   `Database.mark_absent(qr_id)` (the single-row inverse of `mark_present`, for
   manual corrections), re-exports `attendance.xlsx`, and refreshes — the same
   downstream effects as a scan, but with the row repaint as feedback instead of the
-  banner.
+  scan overlay.
 
 ---
 
@@ -470,7 +473,7 @@ Some common changes and where to make them:
 | Different attendee ordering | `build_deck` already orders by `row_index`; change the sort there. |
 | Keep template slides in the output | Remove the `delete_slide` loop in `build_deck`. |
 | Switch QR decoder to `pyzbar` | Replace the `cv2.QRCodeDetector` calls in `app/scanner.py` (add `pyzbar` + the zbar runtime). |
-| Restyle the UI | The Qt stylesheet lives in `MainWindow._apply_style`; banner colours in `ScanView._banner_style`. |
+| Restyle the UI | The Qt stylesheet lives in `MainWindow._apply_style`; scan-overlay colours in `ScanView._overlay_style`. |
 
 Conventions to keep:
 - Keep Qt out of `app/` (except `scanner.py`). UI talks to `app/`, not vice versa.
