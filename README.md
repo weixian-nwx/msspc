@@ -38,10 +38,11 @@ is for developers maintaining or extending the app.
 
 | Capability | Detail |
 |---|---|
-| Roster import | Reads an `.xlsx`/`.xlsm` of expected participants. Required columns (case/whitespace tolerant): `unique qr id`, `name`, `title`, `grade`. Any extra columns are preserved in the output. |
+| Roster import | Reads an `.xlsx`/`.xlsm` of expected participants. Required columns (case/whitespace/underscore tolerant): `unique qr id`, `name`, `title`, `grade`, `seat_no`, `bu`. Any extra columns are preserved in the output. |
 | QR scanning | Uses the default webcam and OpenCV's built-in QR detector. The QR must encode the participant's `unique qr id` **verbatim**. |
+| QR generation | **Generate QR codes** writes one PNG per participant into `data/qrcodes/` (encoding the `unique qr id`, captioned with the name, named by `seat_no`) and opens the folder. |
 | Scan feedback | Green = checked in. Amber = already checked in (no double counting). Red = unknown QR (not on the roster — rejected). |
-| Deck population | Clones a per-grade *template* slide for each attendee, fills in their name and title, and inserts it after that grade's *section title* slide. Present and absent attendees are handled separately, per grade. |
+| Deck population | Clones a per-grade *template* slide for each attendee, fills in their name, title and BU, and inserts it after that grade's *section title* slide. Present and absent attendees are handled separately, per grade. |
 | Auto-save | The SQLite database is committed on every scan, upload, mapping change, and clear. The attendance Excel is regenerated on every successful scan. |
 | Safe clearing | Each piece of data has its own action in the **Settings ▸ Clear data** menu, each behind a confirmation dialog. |
 
@@ -128,26 +129,33 @@ live in the **Settings ▸ Clear data** menu — see below.)
    - Pick your PowerPoint template. It is copied into `data/`.
    - ✅ Enables “Configure slide mappings”.
 
-3. **Configure slide mappings…**
+3. **Generate QR codes** (optional, needs the roster loaded)
+   - Writes one PNG per participant into `data/qrcodes/` — each encodes the
+     participant's `unique qr id`, shows their name beneath the code, and is named
+     by `seat_no` (falling back to the QR id if a seat is blank/duplicated). Old
+     PNGs in the folder are cleared first, then the folder is opened automatically.
+
+4. **Configure slide mappings…**
    - The dialog lists **every distinct grade** found in the roster. For each grade
      you choose four slides from drop-downs (each entry shows the slide number and
-     its title text):
+     its **layout name**, falling back to `slide N` when the layout is unnamed):
      - **Present → Title slide**: the “_X grade attendees_” heading.
      - **Present → Template slide**: the per-attendee layout to clone for present people.
      - **Absent → Title slide**: the “_X grade absentees_” heading.
      - **Absent → Template slide**: the per-attendee layout to clone for absent people.
-   - Directly beneath each **template** slide drop-down are **Name shape** and
-     **Title shape** drop-downs that list that slide's text boxes (each shown by
-     its shape name and a snippet of its current text); pick which holds the
-     **name** and which holds the **title**. The lists refresh automatically when
-     you change the template slide, so the shapes always match the chosen slide.
+   - Directly beneath each **template** slide drop-down are **Name shape**,
+     **Title shape** and **BU shape** drop-downs that list that slide's text boxes
+     (each shown by its shape name and a snippet of its current text); pick which
+     holds the **name**, the **title** and the **BU**. The lists refresh
+     automatically when you change the template slide, so the shapes always match
+     the chosen slide.
    - Click **Save**. Mappings are stored in the database and survive restarts.
-   - ✅ When *every* grade has all four slides mapped **and** both template shapes
-     designated, “Populate slide deck” is enabled.
+   - ✅ When *every* grade has all four slides mapped **and** all three template
+     shapes designated, “Populate slide deck” is enabled.
 
 ### Step 2 — Attendance
 
-4. **Start scanning** — opens the webcam. Present a participant's QR code:
+5. **Start scanning** — opens the webcam. Present a participant's QR code:
    - **Green banner**: checked in — shows name and title.
    - **Amber banner**: already checked in — no change, no double count.
    - **Red banner**: the QR value is not on the roster — rejected.
@@ -156,12 +164,14 @@ live in the **Settings ▸ Clear data** menu — see below.)
    - Click **Stop scanning** to release the camera.
    - The attendance Excel is re-saved after every successful check-in.
 
-5. **Open attendance excel** — opens the current `data/attendance.xlsx`.
+6. **Open attendance excel** — opens the current `data/attendance.xlsx`.
 
 The **Participants** list (right side, below the scan view) shows every roster
-entry with live **Present**/**Absent** status — present rows are highlighted
-green — and updates the moment a scan lands. A name search box and a
-status filter (All / Present / Absent) help you find people in a long list.
+entry — **Name**, **Seat No**, **Title**, **BU**, **Grade**, plus live
+**Status** and **Check-in time** — with present rows highlighted green, updating
+the moment a scan lands. Every column is **user-resizable** (drag the header
+dividers). A name search box and a status filter (All / Present / Absent) help
+you find people in a long list.
 
 **Manual correction:** **double-click a participant** to toggle their attendance.
 After a confirmation dialog this marks them present or absent and re-saves the
@@ -199,6 +209,7 @@ All working data lives in **`data/`** (created automatically; git-ignored):
 | `template_deck.pptx` | A copy of the uploaded template. |
 | `attendance.xlsx` | All original roster columns **+ a `Status` column** (`Present`/`Absent`), in the **original input row order**. Regenerated on every scan and on demand. |
 | `attendance_deck_YYYY-MM-DD_HHMMSS.pptx` | A populated deck, one file per generation. |
+| `qrcodes/` | One `<seat_no>.png` per participant, generated on demand by **Generate QR codes** (cleared and rewritten each run). |
 
 **Crash safety:** every mutating action is a single committed SQLite transaction,
 so closing the app (deliberately or accidentally) at any point never loses
@@ -256,13 +267,14 @@ msspc/
 │  ├─ db.py                # SQLite schema + atomic CRUD (Database, Participant)
 │  ├─ excel_io.py          # import_participants(), export_attendance()
 │  ├─ scanner.py           # ScannerThread: webcam frames + QR decode (QThread)
+│  ├─ qr.py                # generate_qr_codes(): one captioned QR PNG per participant
 │  ├─ pptx_utils.py        # Slide clone/move/delete + shape helpers + inspection
 │  └─ pptx_builder.py      # build_deck(): assemble the populated deck
 ├─ ui/
 │  ├─ main_window.py       # Control panel, gating, wiring, Settings/clear menu
 │  ├─ scan_view.py         # Live camera widget + colored result banner
-│  ├─ participant_list.py  # In-app roster: live status, search/filter, double-click toggle
-│  └─ mapping_dialog.py    # Per-grade 4-slide mapping + inline name/title shape pickers
+│  ├─ participant_list.py  # In-app roster: resizable columns, live status, search/filter, double-click toggle
+│  └─ mapping_dialog.py    # Per-grade 4-slide mapping + inline name/title/BU shape pickers
 ├─ tests/
 │  ├─ make_samples.py      # Generate a sample roster + template deck
 │  ├─ test_pipeline.py     # Headless db+excel+pptx end-to-end assertions
@@ -285,6 +297,8 @@ Database file: `data/app.db` (WAL mode, foreign keys on). Defined in
 | `name` | TEXT | |
 | `title` | TEXT | Shown on the slide. |
 | `grade` | TEXT | Drives sectioning; values are whatever the roster contains. |
+| `seat_no` | TEXT | Shown in the roster table; used as the QR image filename. |
+| `bu` | TEXT | Business unit; shown in the roster table and written onto the slide. |
 | `row_index` | INTEGER | 0-based original Excel row order (defines output ordering). |
 | `present` | INTEGER | 0 = absent, 1 = present. |
 | `checkin_time` | TEXT | `YYYY-MM-DD HH:MM:SS` when marked present, else NULL. |
@@ -303,18 +317,25 @@ Primary key `(grade, role, kind)`.
 | `slide_idx` | 0-based slide index in the **original** template deck. |
 | `name_shape_id` | Shape id of the name text box (template rows only). |
 | `title_shape_id` | Shape id of the title text box (template rows only). |
+| `bu_shape_id` | Shape id of the BU text box (template rows only). |
 
 `Database.mappings_complete()` returns `True` only when every distinct grade has
-all four `(role, kind)` rows **and** both template rows have name+title shape ids.
+all four `(role, kind)` rows **and** every template row has name+title+BU shape ids.
 This is the gate for the **Populate** button.
+
+> **Upgrading an existing database:** `init_schema` runs an additive `_migrate()`
+> that `ALTER TABLE ADD COLUMN`s `seat_no`, `bu` and `bu_shape_id` if they are
+> missing, so older `data/app.db` files keep working. Note that previously-saved
+> mappings will read as **incomplete** until a BU shape is chosen, and an old
+> roster sheet must be re-exported with `seat_no`/`bu` columns before re-importing.
 
 ---
 
 ## 10. How key features work internally
 
 ### 10.1 Roster import (`app/excel_io.py :: import_participants`)
-- Opens the workbook read-only; matches the four required headers
-  case/whitespace-insensitively (`_find_required_columns`).
+- Opens the workbook read-only; matches the six required headers
+  case/whitespace/underscore-insensitively (`_find_required_columns`).
 - Skips fully blank rows; raises `ExcelError` on a missing/blank `unique qr id` or
   a duplicate id.
 - Copies the original file to `config.EXPECTED_XLSX`, then atomically replaces the
@@ -357,9 +378,9 @@ those at the XML/relationship level:
 2. Captures stable references to the original slide objects up front, because
    inserting clones shifts indices.
 3. For each grade × role, gathers the matching participants **in `row_index`
-   order**, clones the template slide for each, fills name + title, and moves each
-   clone to sit immediately after that section's title slide (consecutively, in
-   order).
+   order**, clones the template slide for each, fills name + title + BU, and moves
+   each clone to sit immediately after that section's title slide (consecutively,
+   in order).
 4. Removes the now-redundant template source slides.
 5. Saves to the timestamped path.
 

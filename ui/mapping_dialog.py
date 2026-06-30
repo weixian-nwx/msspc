@@ -2,7 +2,7 @@
 
 For every distinct grade found in the roster the user selects four slides:
 present-title, present-template, absent-title, absent-template. For the two
-template slides they also designate the name/title shapes, picked inline from
+template slides they also designate the name/title/BU shapes, picked inline from
 dropdowns that list the chosen template slide's own text boxes.
 """
 from __future__ import annotations
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +39,11 @@ class _NoScrollComboBox(QComboBox):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.setFocusPolicy(Qt.StrongFocus)
+        # Don't let a long item dictate the combo's width — keep the grid inside
+        # the dialog (no horizontal scrollbar). The full text stays in the popup.
+        self.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.setMinimumContentsLength(8)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
 
     def wheelEvent(self, event) -> None:
         if self.hasFocus():
@@ -55,6 +61,7 @@ class _GradeRow:
         # (role) -> shape combos, populated from the chosen template slide.
         self.name_combos: dict[str, QComboBox] = {}
         self.title_combos: dict[str, QComboBox] = {}
+        self.bu_combos: dict[str, QComboBox] = {}
 
 
 class MappingDialog(QDialog):
@@ -109,10 +116,17 @@ class MappingDialog(QDialog):
 
         grid.addWidget(QLabel("Title slide:"), 1, 0)
         grid.addWidget(QLabel("Template slide:"), 2, 0)
+        # The two role columns share the available width evenly so long labels
+        # elide within the dialog instead of forcing a horizontal scrollbar.
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 1)
         # The two shape rows are indented so they visibly belong to the
         # template slide above them — their options come from that slide.
         grid.addWidget(QLabel(" ↳ Name shape:"), 3, 0)
         grid.addWidget(QLabel(" ↳ Title shape:"), 4, 0)
+
+        # The BU shape label sits in row 5, matching the combo added in the loop.
+        grid.addWidget(QLabel(" ↳ BU shape:"), 5, 0)
 
         for col, role in enumerate((config.ROLE_PRESENT, config.ROLE_ABSENT), start=1):
             title_combo = self._slide_combo()
@@ -124,14 +138,23 @@ class MappingDialog(QDialog):
 
             name_combo = _NoScrollComboBox()
             title_shape_combo = _NoScrollComboBox()
+            bu_shape_combo = _NoScrollComboBox()
             row.name_combos[role] = name_combo
             row.title_combos[role] = title_shape_combo
+            row.bu_combos[role] = bu_shape_combo
             grid.addWidget(name_combo, 3, col)
             grid.addWidget(title_shape_combo, 4, col)
+            grid.addWidget(bu_shape_combo, 5, col)
 
             # Seed the shape dropdowns from the template combo's default slide,
             # then react to later changes (which clears any stale selection).
-            self._populate_shapes(role, tmpl_combo.currentData(), name_combo, title_shape_combo)
+            self._populate_shapes(
+                role,
+                tmpl_combo.currentData(),
+                name_combo,
+                title_shape_combo,
+                bu_shape_combo,
+            )
             tmpl_combo.currentIndexChanged.connect(
                 lambda _=0, g=grade, r=role: self._on_template_changed(g, r)
             )
@@ -164,17 +187,23 @@ class MappingDialog(QDialog):
         slide_idx: int | None,
         name_combo: QComboBox,
         title_combo: QComboBox,
+        bu_combo: QComboBox,
         name_id: int | None = None,
         title_id: int | None = None,
+        bu_id: int | None = None,
     ) -> None:
-        """Fill both shape combos from ``slide_idx``'s text boxes.
+        """Fill the three shape combos from ``slide_idx``'s text boxes.
 
         Rebuilding the lists drops any prior pick that isn't on the new slide,
         which is exactly the reset we want when the template slide changes.
-        ``name_id`` / ``title_id`` re-select a saved shape when restoring.
+        ``name_id`` / ``title_id`` / ``bu_id`` re-select a saved shape when restoring.
         """
         shapes = self._text_shapes(slide_idx) if slide_idx is not None else []
-        for combo, want in ((name_combo, name_id), (title_combo, title_id)):
+        for combo, want in (
+            (name_combo, name_id),
+            (title_combo, title_id),
+            (bu_combo, bu_id),
+        ):
             combo.clear()
             for s in shapes:
                 combo.addItem(self._shape_label(s), s["shape_id"])
@@ -187,7 +216,11 @@ class MappingDialog(QDialog):
         row = self.rows[grade]
         slide_idx = row.combos[(role, config.KIND_TEMPLATE)].currentData()
         self._populate_shapes(
-            role, slide_idx, row.name_combos[role], row.title_combos[role]
+            role,
+            slide_idx,
+            row.name_combos[role],
+            row.title_combos[role],
+            row.bu_combos[role],
         )
 
     def _load_existing(self) -> None:
@@ -212,23 +245,26 @@ class MappingDialog(QDialog):
                             m["slide_idx"],
                             row.name_combos[role],
                             row.title_combos[role],
+                            row.bu_combos[role],
                             m["name_shape_id"],
                             m["title_shape_id"],
+                            m["bu_shape_id"],
                         )
 
     def _on_save(self) -> None:
-        # Validate: every grade needs both template shapes designated.
+        # Validate: every grade needs all three template shapes designated.
         for grade in self.grades:
             row = self.rows[grade]
             for role in config.ROLES:
                 if (
                     row.name_combos[role].currentData() is None
                     or row.title_combos[role].currentData() is None
+                    or row.bu_combos[role].currentData() is None
                 ):
                     QMessageBox.warning(
                         self,
                         "Shapes not set",
-                        f"Please set the name & title shapes for grade '{grade}' ({role}).",
+                        f"Please set the name, title & BU shapes for grade '{grade}' ({role}).",
                     )
                     return
 
@@ -237,6 +273,7 @@ class MappingDialog(QDialog):
             for role in config.ROLES:
                 name_id = row.name_combos[role].currentData()
                 title_id = row.title_combos[role].currentData()
+                bu_id = row.bu_combos[role].currentData()
                 self.db.save_mapping(
                     grade,
                     role,
@@ -250,5 +287,6 @@ class MappingDialog(QDialog):
                     row.combos[(role, config.KIND_TEMPLATE)].currentData(),
                     name_id,
                     title_id,
+                    bu_id,
                 )
         self.accept()

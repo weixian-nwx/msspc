@@ -19,6 +19,9 @@ DB_PATH = os.path.join(DATA_DIR, "app.db")
 EXPECTED_XLSX = os.path.join(DATA_DIR, "expected_participants.xlsx")
 TEMPLATE_PPTX = os.path.join(DATA_DIR, "template_deck.pptx")
 
+# Folder of generated per-participant QR code images.
+QRCODE_DIR = os.path.join(DATA_DIR, "qrcodes")
+
 # Regenerated attendance export (overwritten on every scan).
 ATTENDANCE_XLSX = os.path.join(DATA_DIR, "attendance.xlsx")
 
@@ -27,7 +30,9 @@ COL_QR_ID = "unique qr id"
 COL_NAME = "name"
 COL_TITLE = "title"
 COL_GRADE = "grade"
-REQUIRED_COLUMNS = [COL_QR_ID, COL_NAME, COL_TITLE, COL_GRADE]
+COL_SEAT = "seat_no"
+COL_BU = "bu"
+REQUIRED_COLUMNS = [COL_QR_ID, COL_NAME, COL_TITLE, COL_GRADE, COL_SEAT, COL_BU]
 
 # Roles and slide kinds used in the slide-mapping model.
 ROLE_PRESENT = "present"

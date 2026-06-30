@@ -174,11 +174,23 @@ def slide_title_text(slide) -> str:
     return ""
 
 
+def slide_layout_name(slide) -> str:
+    """Return the slide's layout name, or '' when unavailable."""
+    try:
+        return (slide.slide_layout.name or "").strip()
+    except (ValueError, AttributeError):
+        return ""
+
+
 def list_slides(pptx_path: str) -> list[dict]:
-    """Return [{idx, title}] for every slide, for the slide-chooser UI."""
+    """Return [{idx, title}] for every slide, for the slide-chooser UI.
+
+    The label is the slide's layout name when available, falling back to a
+    generic 'slide N' otherwise.
+    """
     prs = Presentation(pptx_path)
     return [
-        {"idx": i, "title": slide_title_text(s) or f"(slide {i + 1})"}
+        {"idx": i, "title": slide_layout_name(s) or f"slide {i + 1}"}
         for i, s in enumerate(prs.slides)
     ]
 

@@ -19,14 +19,14 @@ XLSX = os.path.join(OUT, "participants.xlsx")
 PPTX = os.path.join(OUT, "template.pptx")
 
 PEOPLE = [
-    # qr id, name, title, grade
-    ("E001", "Alice Tan", "engineer", "e"),
-    ("E002", "Bob Lim", "senior engineer", "e"),
-    ("E003", "Carol Ng", "engineer", "e"),
-    ("M001", "David Goh", "manager", "m"),
-    ("M002", "Eve Wong", "senior manager", "m"),
-    ("F001", "Frank Lee", "coordinator", "f"),
-    ("F002", "Grace Sim", "admin", "f"),
+    # qr id, name, title, grade, seat_no, bu
+    ("E001", "Alice Tan", "engineer", "e", "A01", "Avionics"),
+    ("E002", "Bob Lim", "senior engineer", "e", "A02", "Avionics"),
+    ("E003", "Carol Ng", "engineer", "e", "A03", "Marine"),
+    ("M001", "David Goh", "manager", "m", "B01", "Land Systems"),
+    ("M002", "Eve Wong", "senior manager", "m", "B02", "Land Systems"),
+    ("F001", "Frank Lee", "coordinator", "f", "C01", "Corporate"),
+    ("F002", "Grace Sim", "admin", "f", "C02", "Corporate"),
 ]
 
 
@@ -34,10 +34,10 @@ def make_excel() -> None:
     wb = Workbook()
     ws = wb.active
     ws.title = "Participants"
-    ws.append(["Unique QR ID", "Name", "Title", "Grade", "Department"])
+    ws.append(["Unique QR ID", "Name", "Title", "Grade", "Seat No", "BU", "Department"])
     depts = ["R&D", "R&D", "QA", "Ops", "Ops", "Admin", "Admin"]
-    for (qr, name, title, grade), dept in zip(PEOPLE, depts):
-        ws.append([qr, name, title, grade, dept])
+    for (qr, name, title, grade, seat, bu), dept in zip(PEOPLE, depts):
+        ws.append([qr, name, title, grade, seat, bu, dept])
     wb.save(XLSX)
     print("wrote", XLSX)
 
@@ -64,6 +64,11 @@ def _add_section(prs, title_text):
     title_box.name = "TITLE"
     title_box.text_frame.text = "{{title}}"
     title_box.text_frame.paragraphs[0].runs[0].font.size = Pt(24)
+
+    bu_box = tmpl_slide.shapes.add_textbox(Inches(1), Inches(4.2), Inches(8), Inches(1))
+    bu_box.name = "BU"
+    bu_box.text_frame.text = "{{bu}}"
+    bu_box.text_frame.paragraphs[0].runs[0].font.size = Pt(20)
     tmpl_idx = len(prs.slides) - 1
 
     return title_idx, tmpl_idx

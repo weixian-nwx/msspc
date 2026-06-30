@@ -19,6 +19,8 @@ class Participant:
     name: str
     title: str
     grade: str
+    seat_no: str
+    bu: str
     row_index: int
     present: bool
     checkin_time: Optional[str]
@@ -43,6 +45,8 @@ class Database:
                 name         TEXT NOT NULL,
                 title        TEXT NOT NULL,
                 grade        TEXT NOT NULL,
+                seat_no      TEXT NOT NULL DEFAULT '',
+                bu           TEXT NOT NULL DEFAULT '',
                 row_index    INTEGER NOT NULL,
                 present      INTEGER NOT NULL DEFAULT 0,
                 checkin_time TEXT
@@ -60,10 +64,29 @@ class Database:
                 slide_idx      INTEGER NOT NULL,
                 name_shape_id  INTEGER,
                 title_shape_id INTEGER,
+                bu_shape_id    INTEGER,
                 PRIMARY KEY (grade, role, kind)
             );
             """
         )
+        self.conn.commit()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Additively add columns introduced after a database was first created.
+
+        Existing databases predate seat_no/bu and bu_shape_id; ALTER TABLE ADD
+        COLUMN brings them up to date without losing any stored data.
+        """
+        additions = [
+            ("participants", "seat_no", "TEXT NOT NULL DEFAULT ''"),
+            ("participants", "bu", "TEXT NOT NULL DEFAULT ''"),
+            ("slide_mappings", "bu_shape_id", "INTEGER"),
+        ]
+        for table, column, decl in additions:
+            cols = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
         self.conn.commit()
 
     def close(self) -> None:
@@ -90,14 +113,14 @@ class Database:
     def replace_participants(self, rows: list[dict]) -> None:
         """Atomically replace the participant set from a freshly parsed excel.
 
-        ``rows`` items must contain qr_id, name, title, grade, row_index.
+        ``rows`` items must contain qr_id, name, title, grade, seat_no, bu, row_index.
         Clears any prior attendance because the roster has changed.
         """
         with self.conn:  # transaction
             self.conn.execute("DELETE FROM participants")
             self.conn.executemany(
-                "INSERT INTO participants(qr_id, name, title, grade, row_index, present, checkin_time) "
-                "VALUES(:qr_id, :name, :title, :grade, :row_index, 0, NULL)",
+                "INSERT INTO participants(qr_id, name, title, grade, seat_no, bu, row_index, present, checkin_time) "
+                "VALUES(:qr_id, :name, :title, :grade, :seat_no, :bu, :row_index, 0, NULL)",
                 rows,
             )
 
@@ -161,14 +184,15 @@ class Database:
         slide_idx: int,
         name_shape_id: Optional[int] = None,
         title_shape_id: Optional[int] = None,
+        bu_shape_id: Optional[int] = None,
     ) -> None:
         self.conn.execute(
-            "INSERT INTO slide_mappings(grade, role, kind, slide_idx, name_shape_id, title_shape_id) "
-            "VALUES(?, ?, ?, ?, ?, ?) "
+            "INSERT INTO slide_mappings(grade, role, kind, slide_idx, name_shape_id, title_shape_id, bu_shape_id) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(grade, role, kind) DO UPDATE SET "
             "slide_idx=excluded.slide_idx, name_shape_id=excluded.name_shape_id, "
-            "title_shape_id=excluded.title_shape_id",
-            (grade, role, kind, slide_idx, name_shape_id, title_shape_id),
+            "title_shape_id=excluded.title_shape_id, bu_shape_id=excluded.bu_shape_id",
+            (grade, role, kind, slide_idx, name_shape_id, title_shape_id, bu_shape_id),
         )
         self.conn.commit()
 
@@ -199,10 +223,14 @@ class Database:
                 for kind in config.KINDS:
                     if (g, role, kind) not in existing:
                         return False
-        # Every template slide must also have both shapes designated.
+        # Every template slide must also have all three shapes designated.
         for m in mappings:
             if m["kind"] == config.KIND_TEMPLATE:
-                if m["name_shape_id"] is None or m["title_shape_id"] is None:
+                if (
+                    m["name_shape_id"] is None
+                    or m["title_shape_id"] is None
+                    or m["bu_shape_id"] is None
+                ):
                     return False
         return True
 
@@ -214,6 +242,8 @@ class Database:
             name=row["name"],
             title=row["title"],
             grade=row["grade"],
+            seat_no=row["seat_no"],
+            bu=row["bu"],
             row_index=row["row_index"],
             present=bool(row["present"]),
             checkin_time=row["checkin_time"],

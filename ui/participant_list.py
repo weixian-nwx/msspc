@@ -64,16 +64,20 @@ class ParticipantList(QWidget):
         layout.addLayout(bar)
 
         # --- Table ---
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Name", "Status", "Check-in time"])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(
+            ["Name", "Seat No", "Title", "BU", "Grade", "Status", "Check-in time"]
+        )
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.NoSelection)
         self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setStretchLastSection(True)
+        # All columns are user-resizable; seed sensible starting widths.
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(False)
+        for col, width in enumerate((160, 70, 150, 90, 60, 80, 140)):
+            self.table.setColumnWidth(col, width)
         # Double-clicking anywhere on a row toggles that participant's status.
         self.table.cellDoubleClicked.connect(self._on_double_click)
         layout.addWidget(self.table)
@@ -104,10 +108,16 @@ class ParticipantList(QWidget):
         self._rows = rows
         self.table.setRowCount(len(rows))
         for r, p in enumerate(rows):
-            name_item = QTableWidgetItem(p.name)
-            status_item = QTableWidgetItem("Present" if p.present else "Absent")
-            time_item = QTableWidgetItem(p.checkin_time or "—")
-            for c, item in enumerate((name_item, status_item, time_item)):
+            items = (
+                QTableWidgetItem(p.name),
+                QTableWidgetItem(p.seat_no),
+                QTableWidgetItem(p.title),
+                QTableWidgetItem(p.bu),
+                QTableWidgetItem(p.grade),
+                QTableWidgetItem("Present" if p.present else "Absent"),
+                QTableWidgetItem(p.checkin_time or "—"),
+            )
+            for c, item in enumerate(items):
                 if p.present:
                     item.setBackground(PRESENT_BG)
                     item.setForeground(PRESENT_FG)

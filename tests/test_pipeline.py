@@ -36,7 +36,9 @@ def main() -> int:
     n = import_participants(samples.XLSX, db)
     assert n == 7, f"expected 7 participants, got {n}"
     assert db.distinct_grades() == ["e", "f", "m"], db.distinct_grades()
-    print(f"[ok] imported {n} participants; grades={db.distinct_grades()}")
+    alice = db.get_participant("E001")
+    assert alice is not None and alice.seat_no == "A01" and alice.bu == "Avionics", alice
+    print(f"[ok] imported {n} participants; grades={db.distinct_grades()}; seat/bu parsed")
 
     # 2. Register the template + mappings using the known section map.
     import shutil
@@ -52,8 +54,9 @@ def main() -> int:
             shapes = list_text_shapes(tmpl_path, tmpl_idx)
             name_id = next(s["shape_id"] for s in shapes if s["name"] == "NAME")
             title_id = next(s["shape_id"] for s in shapes if s["name"] == "TITLE")
+            bu_id = next(s["shape_id"] for s in shapes if s["name"] == "BU")
             db.save_mapping(grade, role, "title", title_idx)
-            db.save_mapping(grade, role, "template", tmpl_idx, name_id, title_id)
+            db.save_mapping(grade, role, "template", tmpl_idx, name_id, title_id, bu_id)
 
     assert db.mappings_complete(), "mappings should be complete"
     print("[ok] mappings saved and complete")
@@ -140,7 +143,13 @@ def main() -> int:
             if shp.has_text_frame:
                 all_text.append(shp.text_frame.text)
     joined = "\n".join(all_text)
-    assert "{{name}}" not in joined and "{{title}}" not in joined, "template tokens leaked"
+    assert (
+        "{{name}}" not in joined
+        and "{{title}}" not in joined
+        and "{{bu}}" not in joined
+    ), "template tokens leaked"
+    # BU values from the roster must reach the populated slides.
+    assert "Avionics" in joined and "Land Systems" in joined, "BU text not written to slides"
     print("[ok] deck structure verified: attendees inserted under correct sections, no tokens left")
 
     db.close()

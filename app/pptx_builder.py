@@ -58,6 +58,7 @@ def build_deck(db: Database, out_path: str) -> str:
             tmpl_slide = slide_at(tmpl_map["slide_idx"])
             name_shape_id = tmpl_map["name_shape_id"]
             title_shape_id = tmpl_map["title_shape_id"]
+            bu_shape_id = tmpl_map["bu_shape_id"]
 
             if all(tmpl_slide._element is not e for e in template_elements):
                 template_elements.append(tmpl_slide._element)
@@ -73,10 +74,13 @@ def build_deck(db: Database, out_path: str) -> str:
 
                 name_shape = find_shape_by_id(clone, name_shape_id)
                 title_shape = find_shape_by_id(clone, title_shape_id)
+                bu_shape = find_shape_by_id(clone, bu_shape_id) if bu_shape_id else None
                 if name_shape is not None:
                     set_shape_text(name_shape, person.name)
                 if title_shape is not None:
                     set_shape_text(title_shape, person.title)
+                if bu_shape is not None:
+                    set_shape_text(bu_shape, person.bu)
 
                 move_slide_to(prs, clone, insert_pos)
                 insert_pos += 1

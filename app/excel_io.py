@@ -5,6 +5,7 @@ order, simply appending a ``Status`` column (Present / Absent).
 """
 from __future__ import annotations
 
+import re
 import shutil
 from typing import Optional
 
@@ -20,7 +21,14 @@ class ExcelError(Exception):
 
 
 def _normalize(text: object) -> str:
-    return str(text).strip().lower() if text is not None else ""
+    """Normalize a header for matching: case-, space- and underscore-insensitive.
+
+    This lets headers like ``Seat No``, ``seat_no`` and ``SEAT NO`` all match the
+    same required column key.
+    """
+    if text is None:
+        return ""
+    return re.sub(r"[\s_]+", "", str(text).strip().lower())
 
 
 def _find_required_columns(header: list[object]) -> dict[str, int]:
@@ -29,8 +37,9 @@ def _find_required_columns(header: list[object]) -> dict[str, int]:
     resolved: dict[str, int] = {}
     missing: list[str] = []
     for col in config.REQUIRED_COLUMNS:
-        if col in norm:
-            resolved[col] = norm[col]
+        key = _normalize(col)
+        if key in norm:
+            resolved[col] = norm[key]
         else:
             missing.append(col)
     if missing:
@@ -71,9 +80,11 @@ def import_participants(src_path: str, db: Database) -> int:
         name = raw[cols[config.COL_NAME]] if cols[config.COL_NAME] < len(raw) else None
         title = raw[cols[config.COL_TITLE]] if cols[config.COL_TITLE] < len(raw) else None
         grade = raw[cols[config.COL_GRADE]] if cols[config.COL_GRADE] < len(raw) else None
+        seat = raw[cols[config.COL_SEAT]] if cols[config.COL_SEAT] < len(raw) else None
+        bu = raw[cols[config.COL_BU]] if cols[config.COL_BU] < len(raw) else None
 
         # Skip fully blank rows.
-        if all(v is None or str(v).strip() == "" for v in (qr, name, title, grade)):
+        if all(v is None or str(v).strip() == "" for v in (qr, name, title, grade, seat, bu)):
             continue
 
         qr_s = "" if qr is None else str(qr).strip()
@@ -89,6 +100,8 @@ def import_participants(src_path: str, db: Database) -> int:
                 "name": "" if name is None else str(name).strip(),
                 "title": "" if title is None else str(title).strip(),
                 "grade": "" if grade is None else str(grade).strip(),
+                "seat_no": "" if seat is None else str(seat).strip(),
+                "bu": "" if bu is None else str(bu).strip(),
                 "row_index": row_index,
             }
         )
@@ -121,7 +134,7 @@ def export_attendance(db: Database, out_path: Optional[str] = None) -> str:
 
     header = [c.value for c in ws[1]]
     norm = {_normalize(h): i for i, h in enumerate(header) if h is not None}
-    qr_col = norm[config.COL_QR_ID]  # 0-based
+    qr_col = norm[_normalize(config.COL_QR_ID)]  # 0-based
 
     status_by_id = {p.qr_id: ("Present" if p.present else "Absent") for p in db.all_participants()}
 

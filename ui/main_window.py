@@ -25,6 +25,7 @@ from app import config
 from app.db import Database
 from app.excel_io import ExcelError, export_attendance, import_participants
 from app.pptx_builder import BuildError, build_deck
+from app.qr import generate_qr_codes
 from ui.mapping_dialog import MappingDialog
 from ui.participant_list import ParticipantList
 from ui.scan_view import ScanView
@@ -103,6 +104,10 @@ class MainWindow(QMainWindow):
         self.btn_mappings.clicked.connect(self._on_configure_mappings)
         layout.addWidget(self.btn_mappings)
 
+        self.btn_qrcodes = QPushButton("Generate QR codes")
+        self.btn_qrcodes.clicked.connect(self._on_generate_qrcodes)
+        layout.addWidget(self.btn_qrcodes)
+
         layout.addWidget(self._hline())
 
         # --- Step 2: attendance ---
@@ -175,6 +180,7 @@ class MainWindow(QMainWindow):
         scanning = self.scan_view.is_running()
 
         self.btn_mappings.setEnabled(has_template and has_excel)
+        self.btn_qrcodes.setEnabled(has_excel)
         self.btn_scan.setEnabled(has_excel)
         self.btn_populate.setEnabled(has_template and mappings_ok)
         self.btn_open_attendance.setEnabled(os.path.exists(config.ATTENDANCE_XLSX))
@@ -244,6 +250,17 @@ class MainWindow(QMainWindow):
         if dlg.exec() == QDialog.Accepted:
             QMessageBox.information(self, "Saved", "Slide mappings saved.")
         self._refresh_state()
+
+    def _on_generate_qrcodes(self) -> None:
+        try:
+            folder, count = generate_qr_codes(self.db)
+        except Exception as exc:  # noqa: BLE001 - surface any imaging/IO error
+            QMessageBox.critical(self, "Could not generate QR codes", f"{exc}")
+            return
+        QMessageBox.information(
+            self, "QR codes generated", f"Generated {count} QR code(s) in:\n{folder}"
+        )
+        os.startfile(folder)  # noqa: S606 (Windows-only, intended)
 
     # ------------------------------------------------------------ scanning
     def _on_toggle_scan(self) -> None:
