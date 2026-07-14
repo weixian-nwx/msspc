@@ -138,7 +138,7 @@ class Database:
 
     def distinct_grades(self) -> list[str]:
         rows = self.conn.execute(
-            "SELECT DISTINCT grade FROM participants ORDER BY grade"
+            "SELECT grade FROM participants GROUP BY grade ORDER BY MIN(row_index)"
         ).fetchall()
         return [r["grade"] for r in rows]
 

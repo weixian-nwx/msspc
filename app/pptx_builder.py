@@ -48,6 +48,11 @@ def build_deck(db: Database, out_path: str) -> str:
     # Capture template-slide elements to delete after cloning (dedup by element id).
     template_elements = []
 
+    # For sections that share a title slide, remember where the previous
+    # section's clones ended so the next grade appends after them (not at the
+    # title), preserving grade order. Keyed by the title slide's original index.
+    last_after_title: dict[int, object] = {}
+
     for grade in db.distinct_grades():
         for role in config.ROLES:
             title_map = db.get_mapping(grade, role, config.KIND_TITLE)
@@ -68,8 +73,11 @@ def build_deck(db: Database, out_path: str) -> str:
             want_present = role == config.ROLE_PRESENT
             people = [p for p in participants if p.grade == grade and p.present == want_present]
 
-            # Insert clones consecutively right after the title slide.
-            insert_pos = slide_index_of(prs, title_slide._element) + 1
+            # Insert clones consecutively right after the title slide (or after
+            # the previous grade's block when the title slide is shared).
+            title_idx = title_map["slide_idx"]
+            anchor_el = last_after_title.get(title_idx, title_slide._element)
+            insert_pos = slide_index_of(prs, anchor_el) + 1
             for person in people:
                 clone = duplicate_slide(prs, tmpl_slide)
 
@@ -87,6 +95,7 @@ def build_deck(db: Database, out_path: str) -> str:
 
                 move_slide_to(prs, clone, insert_pos)
                 insert_pos += 1
+                last_after_title[title_idx] = clone._element
 
     # Remove the template source slides from the final deck.
     for el in template_elements:

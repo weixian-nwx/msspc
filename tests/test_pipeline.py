@@ -35,7 +35,7 @@ def main() -> int:
     # 1. Import participants.
     n = import_participants(samples.XLSX, db)
     assert n == 7, f"expected 7 participants, got {n}"
-    assert db.distinct_grades() == ["e", "f", "m"], db.distinct_grades()
+    assert db.distinct_grades() == ["e", "m", "f"], db.distinct_grades()
     alice = db.get_participant("E001")
     assert alice is not None and alice.seat_no == "A01" and alice.bu == "Avionics", alice
     print(f"[ok] imported {n} participants; grades={db.distinct_grades()}; seat/bu parsed")
@@ -159,6 +159,36 @@ def main() -> int:
         alice_slide.notes_slide.notes_text_frame.text
     )
     print("[ok] seat number written to slide notes")
+
+    # 6. Shared-title case: point m's absent title at e's absent title slide, so a
+    # single "absentees" slide serves both grades. The shared section must list
+    # people in roster grade order (E before M), not reverse iteration order.
+    shared_title_idx = section_map["e"]["absent"]["title"]
+    db.save_mapping("m", "absent", "title", shared_title_idx)
+    assert db.mappings_complete(), "mappings should still be complete after re-map"
+
+    shared_deck = os.path.join(workdir, "out_shared.pptx")
+    build_deck(db, shared_deck)
+    prs2 = Presentation(shared_deck)
+    titles2 = [slide_title_text(s) for s in prs2.slides]
+
+    def followers2(title_substr):
+        for i, t in enumerate(titles2):
+            if title_substr.lower() in t.lower():
+                out = []
+                for j in range(i + 1, len(titles2)):
+                    if "grade" in titles2[j].lower():
+                        break
+                    out.append(titles2[j])
+                return out
+        return None
+
+    shared_absent = followers2("E grade absentees")
+    assert shared_absent == ["Carol Ng", "Eve Wong"], shared_absent
+    # Present sections keep their own per-grade titles and correct order.
+    assert followers2("E grade attendees") == ["Alice Tan", "Bob Lim"], titles2
+    assert followers2("M grade attendees") == ["David Goh"], titles2
+    print("[ok] shared-title absentee section in roster grade order (E before M)")
 
     db.close()
     print("\nALL TESTS PASSED")
