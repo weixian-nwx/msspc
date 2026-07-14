@@ -58,6 +58,7 @@ class MainWindow(QMainWindow):
 
         self.participant_list = ParticipantList(self.db)
         self.participant_list.toggle_requested.connect(self._on_toggle_participant)
+        self.participant_list.bulk_toggle_requested.connect(self._on_bulk_toggle_participants)
         list_box = QGroupBox("Participants")
         list_layout = QVBoxLayout(list_box)
         list_layout.addWidget(self.participant_list)
@@ -312,6 +313,28 @@ class MainWindow(QMainWindow):
             export_attendance(self.db)  # keep the attendance xlsx in sync
         except ExcelError:
             pass
+        self._refresh_state()
+
+    def _on_bulk_toggle_participants(self, qr_ids: list[str], make_present: bool) -> None:
+        """Apply a present/absent change to several participants at once.
+
+        Same downstream effects as the single toggle (mark → export → refresh),
+        behind one confirmation. Clears the list's tick selection on success.
+        """
+        if not qr_ids:
+            return
+        verb = "present" if make_present else "absent"
+        if not self._confirm(
+            "Change attendance",
+            f"Mark {len(qr_ids)} participant(s) as {verb}?",
+        ):
+            return
+        self.db.set_present_many(qr_ids, make_present)
+        try:
+            export_attendance(self.db)  # keep the attendance xlsx in sync
+        except ExcelError:
+            pass
+        self.participant_list.clear_selection()
         self._refresh_state()
 
     def _on_open_attendance(self) -> None:

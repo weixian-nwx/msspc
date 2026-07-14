@@ -158,6 +158,27 @@ class Database:
         )
         self.conn.commit()
 
+    def set_present_many(self, qr_ids: list[str], present: bool) -> None:
+        """Mark several participants present/absent in one committed transaction.
+
+        Present rows share a single check-in timestamp; absent rows have their
+        time cleared. A no-op for an empty ``qr_ids``.
+        """
+        if not qr_ids:
+            return
+        with self.conn:  # transaction
+            if present:
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.conn.executemany(
+                    "UPDATE participants SET present=1, checkin_time=? WHERE qr_id=?",
+                    [(ts, q) for q in qr_ids],
+                )
+            else:
+                self.conn.executemany(
+                    "UPDATE participants SET present=0, checkin_time=NULL WHERE qr_id=?",
+                    [(q,) for q in qr_ids],
+                )
+
     def counts(self) -> tuple[int, int]:
         """Return (present_count, total_count)."""
         total = self.conn.execute("SELECT COUNT(*) AS c FROM participants").fetchone()["c"]

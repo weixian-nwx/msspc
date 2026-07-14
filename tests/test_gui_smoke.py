@@ -82,6 +82,22 @@ def main() -> int:
     assert db.counts()[0] == before_present, "present count should return to baseline"
     print("  manual toggle marks present then absent OK")
 
+    # Bulk toggle: select several rows via the list's tick set, emit the bulk
+    # signal, and confirm they all flip present (and the selection clears).
+    pl = w.participant_list
+    pl.refresh()
+    bulk_ids = [p.qr_id for p in pl._rows[:2]]
+    pl._selected = set(bulk_ids)
+    pl.bulk_toggle_requested.emit(bulk_ids, True)
+    app.processEvents()
+    assert all(db.get_participant(q).present for q in bulk_ids), "bulk should mark all present"
+    assert not pl._selected, "selection should clear after a bulk apply"
+    pl._selected = set(bulk_ids)
+    pl.bulk_toggle_requested.emit(bulk_ids, False)
+    app.processEvents()
+    assert not any(db.get_participant(q).present for q in bulk_ids), "bulk should mark all absent"
+    print("  bulk toggle marks many present then absent OK")
+
     w.close()
     db.close()
     os.remove(os.path.join(config.DATA_DIR, "smoke.db"))
