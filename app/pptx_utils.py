@@ -131,6 +131,11 @@ def set_shape_text(shape, text: str) -> None:
         para.add_run().text = text
 
 
+def set_slide_notes(slide, text: str) -> None:
+    """Set the slide's notes text, replacing any existing notes."""
+    slide.notes_slide.notes_text_frame.text = text
+
+
 # ----------------------------------------------------------------- inspection
 def shape_text_preview(shape) -> str:
     if shape.has_text_frame:

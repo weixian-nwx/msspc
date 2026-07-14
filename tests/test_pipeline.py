@@ -152,6 +152,14 @@ def main() -> int:
     assert "Avionics" in joined and "Land Systems" in joined, "BU text not written to slides"
     print("[ok] deck structure verified: attendees inserted under correct sections, no tokens left")
 
+    # Seat numbers must land in each populated slide's notes.
+    alice_slide = next(s for s, t in zip(prs.slides, titles) if t == "Alice Tan")
+    assert alice_slide.has_notes_slide, "Alice's slide should have notes"
+    assert alice_slide.notes_slide.notes_text_frame.text == "A01", (
+        alice_slide.notes_slide.notes_text_frame.text
+    )
+    print("[ok] seat number written to slide notes")
+
     db.close()
     print("\nALL TESTS PASSED")
     return 0

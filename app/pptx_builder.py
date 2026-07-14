@@ -17,6 +17,7 @@ from app.pptx_utils import (
     find_shape_by_id,
     move_slide_to,
     set_shape_text,
+    set_slide_notes,
     slide_index_of,
 )
 
@@ -81,6 +82,8 @@ def build_deck(db: Database, out_path: str) -> str:
                     set_shape_text(title_shape, person.title)
                 if bu_shape is not None:
                     set_shape_text(bu_shape, person.bu)
+                if person.seat_no:
+                    set_slide_notes(clone, person.seat_no)
 
                 move_slide_to(prs, clone, insert_pos)
                 insert_pos += 1
