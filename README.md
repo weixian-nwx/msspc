@@ -38,7 +38,7 @@ is for developers maintaining or extending the app.
 
 | Capability | Detail |
 |---|---|
-| Roster import | Reads an `.xlsx`/`.xlsm` of expected participants. Required columns (case/whitespace/underscore tolerant): `unique qr id`, `name`, `title`, `grade`, `seat_no`, `bu`. Any extra columns are preserved in the output. |
+| Roster import | Reads an `.xlsx`/`.xlsm` of expected participants. Required columns (case/whitespace/underscore tolerant): `unique qr id`, `name`, `title`, `grade`, `seat_no`, `bu`, `rsvp`. Any extra columns are preserved in the output. |
 | QR scanning | Uses the default webcam and OpenCV's built-in QR detector. The QR must encode the participant's `unique qr id` **verbatim**. |
 | QR generation | **Generate QR codes** writes one PNG per participant into `data/qrcodes/` (encoding the `unique qr id`, captioned with the name, named by `seat_no`) and opens the folder. |
 | Scan feedback | A full-screen colored overlay flashes over the live video on each scan: Green = checked in. Amber = already checked in (no double counting). Red = unknown QR (not on the roster — rejected). |
@@ -168,11 +168,12 @@ live in the **Settings ▸ Clear data** menu — see below.)
 6. **Open attendance excel** — opens the current `data/attendance.xlsx`.
 
 The **Participants** list (right side, below the scan view) shows every roster
-entry — **Name**, **Seat No**, **Title**, **BU**, **Grade**, plus live
+entry — **Name**, **Seat No**, **Title**, **BU**, **Grade**, **RSVP**, plus live
 **Status** and **Check-in time** — with present rows highlighted green, updating
 the moment a scan lands. Every column is **user-resizable** (drag the header
-dividers). A name search box and a status filter (All / Present / Absent) help
-you find people in a long list.
+dividers). A name search box, a status filter (All / Present / Absent) and an
+RSVP filter (All / Yes / No) help you find people in a long list; the filters
+combine.
 
 **Manual correction:** **double-click a participant** to toggle their attendance.
 After a confirmation dialog this marks them present or absent and re-saves the
@@ -300,6 +301,7 @@ Database file: `data/app.db` (WAL mode, foreign keys on). Defined in
 | `grade` | TEXT | Drives sectioning; values are whatever the roster contains. |
 | `seat_no` | TEXT | Shown in the roster table; used as the QR image filename. |
 | `bu` | TEXT | Business unit; shown in the roster table and written onto the slide. |
+| `rsvp` | TEXT | Roster's RSVP value (`Yes` / `No`); shown in the roster table and filterable there. Does not affect attendance or the deck. |
 | `row_index` | INTEGER | 0-based original Excel row order (defines output ordering). |
 | `present` | INTEGER | 0 = absent, 1 = present. |
 | `checkin_time` | TEXT | `YYYY-MM-DD HH:MM:SS` when marked present, else NULL. |
@@ -325,10 +327,11 @@ all four `(role, kind)` rows **and** every template row has name+title+BU shape 
 This is the gate for the **Populate** button.
 
 > **Upgrading an existing database:** `init_schema` runs an additive `_migrate()`
-> that `ALTER TABLE ADD COLUMN`s `seat_no`, `bu` and `bu_shape_id` if they are
-> missing, so older `data/app.db` files keep working. Note that previously-saved
+> that `ALTER TABLE ADD COLUMN`s `seat_no`, `bu`, `rsvp` and `bu_shape_id` if they
+> are missing, so older `data/app.db` files keep working. Note that previously-saved
 > mappings will read as **incomplete** until a BU shape is chosen, and an old
-> roster sheet must be re-exported with `seat_no`/`bu` columns before re-importing.
+> roster sheet must be re-exported with `seat_no`/`bu`/`rsvp` columns before
+> re-importing.
 
 ---
 

@@ -34,6 +34,9 @@ _FILTER_ALL = "All"
 _FILTER_PRESENT = "Present"
 _FILTER_ABSENT = "Absent"
 
+_FILTER_RSVP_YES = "Yes"
+_FILTER_RSVP_NO = "No"
+
 # The check-box lives in column 0; data columns follow.
 _CHECK_COL = 0
 
@@ -77,6 +80,12 @@ class ParticipantList(QWidget):
         self.status_filter.addItems([_FILTER_ALL, _FILTER_PRESENT, _FILTER_ABSENT])
         self.status_filter.currentIndexChanged.connect(self._apply_filter)
         bar.addWidget(self.status_filter)
+
+        bar.addWidget(QLabel("RSVP:"))
+        self.rsvp_filter = QComboBox()
+        self.rsvp_filter.addItems([_FILTER_ALL, _FILTER_RSVP_YES, _FILTER_RSVP_NO])
+        self.rsvp_filter.currentIndexChanged.connect(self._apply_filter)
+        bar.addWidget(self.rsvp_filter)
         layout.addLayout(bar)
 
         # --- Bulk-action bar ---
@@ -101,9 +110,9 @@ class ParticipantList(QWidget):
         layout.addLayout(actions)
 
         # --- Table ---
-        self.table = QTableWidget(0, 8)
+        self.table = QTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(
-            ["", "Name", "Seat No", "Title", "BU", "Grade", "Status", "Check-in time"]
+            ["", "Name", "Seat No", "Title", "BU", "Grade", "RSVP", "Status", "Check-in time"]
         )
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -113,7 +122,7 @@ class ParticipantList(QWidget):
         # All columns are user-resizable; seed sensible starting widths.
         header.setSectionResizeMode(QHeaderView.Interactive)
         header.setStretchLastSection(False)
-        for col, width in enumerate((28, 160, 70, 150, 90, 60, 80, 140)):
+        for col, width in enumerate((28, 160, 70, 150, 90, 60, 60, 80, 140)):
             self.table.setColumnWidth(col, width)
         # Double-clicking a data cell toggles that participant's status; the
         # check-box column is reserved for selection.
@@ -198,6 +207,7 @@ class ParticipantList(QWidget):
         """Rebuild the table from the DB, honouring the search + status filter."""
         needle = self.search.text().strip().lower()
         status = self.status_filter.currentText()
+        rsvp = self.rsvp_filter.currentText()
 
         rows = []
         for p in self.db.all_participants():  # ordered by row_index (Excel order)
@@ -206,6 +216,9 @@ class ParticipantList(QWidget):
             if status == _FILTER_PRESENT and not p.present:
                 continue
             if status == _FILTER_ABSENT and p.present:
+                continue
+            # Sheet values vary in case ("Yes"/"yes"); match leniently.
+            if rsvp != _FILTER_ALL and p.rsvp.strip().lower() != rsvp.lower():
                 continue
             rows.append(p)
 
@@ -230,6 +243,7 @@ class ParticipantList(QWidget):
                 QTableWidgetItem(p.title),
                 QTableWidgetItem(p.bu),
                 QTableWidgetItem(p.grade),
+                QTableWidgetItem(p.rsvp),
                 QTableWidgetItem("Present" if p.present else "Absent"),
                 QTableWidgetItem(p.checkin_time or "—"),
             )

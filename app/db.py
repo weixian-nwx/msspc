@@ -21,6 +21,7 @@ class Participant:
     grade: str
     seat_no: str
     bu: str
+    rsvp: str
     row_index: int
     present: bool
     checkin_time: Optional[str]
@@ -47,6 +48,7 @@ class Database:
                 grade        TEXT NOT NULL,
                 seat_no      TEXT NOT NULL DEFAULT '',
                 bu           TEXT NOT NULL DEFAULT '',
+                rsvp         TEXT NOT NULL DEFAULT '',
                 row_index    INTEGER NOT NULL,
                 present      INTEGER NOT NULL DEFAULT 0,
                 checkin_time TEXT
@@ -75,12 +77,13 @@ class Database:
     def _migrate(self) -> None:
         """Additively add columns introduced after a database was first created.
 
-        Existing databases predate seat_no/bu and bu_shape_id; ALTER TABLE ADD
-        COLUMN brings them up to date without losing any stored data.
+        Existing databases predate seat_no/bu, rsvp and bu_shape_id; ALTER TABLE
+        ADD COLUMN brings them up to date without losing any stored data.
         """
         additions = [
             ("participants", "seat_no", "TEXT NOT NULL DEFAULT ''"),
             ("participants", "bu", "TEXT NOT NULL DEFAULT ''"),
+            ("participants", "rsvp", "TEXT NOT NULL DEFAULT ''"),
             ("slide_mappings", "bu_shape_id", "INTEGER"),
         ]
         for table, column, decl in additions:
@@ -113,14 +116,14 @@ class Database:
     def replace_participants(self, rows: list[dict]) -> None:
         """Atomically replace the participant set from a freshly parsed excel.
 
-        ``rows`` items must contain qr_id, name, title, grade, seat_no, bu, row_index.
-        Clears any prior attendance because the roster has changed.
+        ``rows`` items must contain qr_id, name, title, grade, seat_no, bu, rsvp,
+        row_index. Clears any prior attendance because the roster has changed.
         """
         with self.conn:  # transaction
             self.conn.execute("DELETE FROM participants")
             self.conn.executemany(
-                "INSERT INTO participants(qr_id, name, title, grade, seat_no, bu, row_index, present, checkin_time) "
-                "VALUES(:qr_id, :name, :title, :grade, :seat_no, :bu, :row_index, 0, NULL)",
+                "INSERT INTO participants(qr_id, name, title, grade, seat_no, bu, rsvp, row_index, present, checkin_time) "
+                "VALUES(:qr_id, :name, :title, :grade, :seat_no, :bu, :rsvp, :row_index, 0, NULL)",
                 rows,
             )
 
@@ -265,6 +268,7 @@ class Database:
             grade=row["grade"],
             seat_no=row["seat_no"],
             bu=row["bu"],
+            rsvp=row["rsvp"],
             row_index=row["row_index"],
             present=bool(row["present"]),
             checkin_time=row["checkin_time"],

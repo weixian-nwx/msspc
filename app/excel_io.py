@@ -82,9 +82,10 @@ def import_participants(src_path: str, db: Database) -> int:
         grade = raw[cols[config.COL_GRADE]] if cols[config.COL_GRADE] < len(raw) else None
         seat = raw[cols[config.COL_SEAT]] if cols[config.COL_SEAT] < len(raw) else None
         bu = raw[cols[config.COL_BU]] if cols[config.COL_BU] < len(raw) else None
+        rsvp = raw[cols[config.COL_RSVP]] if cols[config.COL_RSVP] < len(raw) else None
 
         # Skip fully blank rows.
-        if all(v is None or str(v).strip() == "" for v in (qr, name, title, grade, seat, bu)):
+        if all(v is None or str(v).strip() == "" for v in (qr, name, title, grade, seat, bu, rsvp)):
             continue
 
         qr_s = "" if qr is None else str(qr).strip()
@@ -102,6 +103,7 @@ def import_participants(src_path: str, db: Database) -> int:
                 "grade": "" if grade is None else str(grade).strip(),
                 "seat_no": "" if seat is None else str(seat).strip(),
                 "bu": "" if bu is None else str(bu).strip(),
+                "rsvp": "" if rsvp is None else str(rsvp).strip(),
                 "row_index": row_index,
             }
         )

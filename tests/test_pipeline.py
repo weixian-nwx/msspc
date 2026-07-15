@@ -38,7 +38,10 @@ def main() -> int:
     assert db.distinct_grades() == ["e", "m", "f"], db.distinct_grades()
     alice = db.get_participant("E001")
     assert alice is not None and alice.seat_no == "A01" and alice.bu == "Avionics", alice
-    print(f"[ok] imported {n} participants; grades={db.distinct_grades()}; seat/bu parsed")
+    assert alice.rsvp == "Yes", alice
+    bob = db.get_participant("E002")
+    assert bob is not None and bob.rsvp == "No", bob
+    print(f"[ok] imported {n} participants; grades={db.distinct_grades()}; seat/bu/rsvp parsed")
 
     # 2. Register the template + mappings using the known section map.
     import shutil

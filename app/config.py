@@ -32,7 +32,8 @@ COL_TITLE = "title"
 COL_GRADE = "grade"
 COL_SEAT = "seat_no"
 COL_BU = "bu"
-REQUIRED_COLUMNS = [COL_QR_ID, COL_NAME, COL_TITLE, COL_GRADE, COL_SEAT, COL_BU]
+COL_RSVP = "rsvp"
+REQUIRED_COLUMNS = [COL_QR_ID, COL_NAME, COL_TITLE, COL_GRADE, COL_SEAT, COL_BU, COL_RSVP]
 
 # Roles and slide kinds used in the slide-mapping model.
 ROLE_PRESENT = "present"
